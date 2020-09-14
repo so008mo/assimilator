@@ -1,0 +1,171 @@
+Description: >
+    This template deploys the Transit gateway nested stack
+    Author: Soumya Mohanty <Soumya.Mohanty@pb.com>
+Parameters:
+  TemplateBucket:
+    Type: String
+    Default: tgw-artifact-bucket
+    Description: >
+      The S3 bucket from which to fetch the templates used by this stack.
+  environment:
+    Type: String
+  costCenter:
+    Type: String
+  techContact:
+    Type: String
+  product:
+    Type: String
+  regionIata:
+    Type: String
+  PublicSubnet1AZ: 
+    Type: String
+  PublicSubnet2AZ:
+    Type: String  
+  PrivateSubnet1AZ:
+    Type: String
+  PrivateSubnet2AZ: 
+    Type: String
+  EXTNATCIDR:
+    Type: String
+  EXTNATPublicCidrBlock1:
+    Type: String
+  EXTNATPublicCidrBlock2:
+    Type: String
+  EXTNATPrivateCidrBlock1:
+    Type: String
+  EXTNATPrivateCidrBlock2:
+    Type: String
+  INTNATCIDR:
+    Type: String
+  INTNATPublicCidrBlock1:
+    Type: String
+  INTNATPublicCidrBlock2:
+    Type: String
+  INTNATPrivateCidrBlock1:
+    Type: String
+  INTNATPrivateCidrBlock2:
+    Type: String
+  Principals:
+    Type: String
+  HubAccount:
+    Type: String
+  AttachmentTag:
+    Type: String
+    Default: Attach-to-nattgw
+  AssociationTag:
+    Type: String
+    Default: Associate-with-nat
+  PropagationTag:
+    Type: String
+    Default: Propagate-to-nat
+  pAmazonASNEXTNAT:
+    Type: String
+  pAmazonASNINTNAT:
+    Type: String
+  RoleCreation:
+    Type: String
+  EXTNATTraffic:
+    Type: String
+  INTNATTraffic:
+    Type: String
+        
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterLabels:
+      TemplateBucket:
+        default: "bucket"
+        
+Resources:
+
+  STNOEXTNAT:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${environment}/Transit-network-orchestrator-ext-nat-hub.yml"
+      Parameters:
+        Principals: !Ref Principals
+        techContact: !Ref techContact
+        environment: !Ref environment
+        AttachmentTag: !Sub "Attach-to-ext-nattgw-${environment}"
+        AssociationTag: !Sub "Associate-with-ext-nat-${environment}"
+        PropagationTag: !Sub "Propagate-to-ext-nat-${environment}"
+        pAmazonASNEXTNAT: !Ref pAmazonASNEXTNAT
+        EXTNATTraffic: !Ref EXTNATTraffic
+        INTNATTraffic: !Ref INTNATTraffic
+        
+  STNOINTNAT:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+    - STNOEXTNAT
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${environment}/Transit-network-orchestrator-int-nat-hub.yml"
+      Parameters:
+        Principals: !Ref Principals
+        techContact: !Ref techContact
+        environment: !Ref environment
+        AttachmentTag: !Sub "Attach-to-int-nattgw-${environment}"
+        AssociationTag: !Sub "Associate-with-int-nat-${environment}"
+        PropagationTag: !Sub "Propagate-to-int-nat-${environment}"
+        pAmazonASNINTNAT: !Ref pAmazonASNINTNAT
+        EXTNATTraffic: !Ref EXTNATTraffic
+        INTNATTraffic: !Ref INTNATTraffic
+        
+  STNOSPOKE:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+    - STNOEXTNAT
+    - STNOINTNAT
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${environment}/Transit-network-orchestrator-spoke.yml"
+      Parameters:
+        HubAccount: !Ref Principals
+        environment: !Ref environment
+        RoleCreation: !Ref RoleCreation
+        
+  VPCEXTNAT:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+    - STNOEXTNAT
+    - STNOINTNAT
+    - STNOSPOKE
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${environment}/ext-nat-transit-gateway-vpc.yml"
+      Parameters:
+        environment: !Ref environment
+        techContact: !Ref techContact
+        product: !Ref product
+        regionIata: !Ref regionIata
+        costCenter: !Ref costCenter
+        PublicSubnet1AZ: !Ref PublicSubnet1AZ
+        PublicSubnet2AZ: !Ref PublicSubnet2AZ
+        PrivateSubnet1AZ: !Ref PrivateSubnet1AZ
+        PrivateSubnet2AZ: !Ref PrivateSubnet2AZ
+        EXTNATCIDR: !Ref EXTNATCIDR
+        EXTNATPublicCidrBlock1: !Ref EXTNATPublicCidrBlock1
+        EXTNATPublicCidrBlock2: !Ref EXTNATPublicCidrBlock2
+        EXTNATPrivateCidrBlock1: !Ref EXTNATPrivateCidrBlock1
+        EXTNATPrivateCidrBlock2: !Ref EXTNATPrivateCidrBlock2
+        
+  VPCINTNAT:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: 
+    - STNOEXTNAT
+    - STNOINTNAT
+    - STNOSPOKE
+    - VPCEXTNAT
+    Properties:
+      TemplateURL: !Sub "https://${TemplateBucket}.s3.amazonaws.com/${environment}/int-nat-transit-gateway-vpc.yml"
+      Parameters:
+        environment: !Ref environment
+        techContact: !Ref techContact
+        product: !Ref product
+        regionIata: !Ref regionIata
+        costCenter: !Ref costCenter
+        PublicSubnet1AZ: !Ref PublicSubnet1AZ
+        PublicSubnet2AZ: !Ref PublicSubnet2AZ
+        PrivateSubnet1AZ: !Ref PrivateSubnet1AZ
+        PrivateSubnet2AZ: !Ref PrivateSubnet2AZ
+        INTNATCIDR: !Ref INTNATCIDR
+        INTNATPublicCidrBlock1: !Ref INTNATPublicCidrBlock1
+        INTNATPublicCidrBlock2: !Ref INTNATPublicCidrBlock2
+        INTNATPrivateCidrBlock1: !Ref INTNATPrivateCidrBlock1
+        INTNATPrivateCidrBlock2: !Ref INTNATPrivateCidrBlock2

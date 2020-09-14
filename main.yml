@@ -1,0 +1,93 @@
+---
+
+- hosts: localhost
+  connection: local
+  gather_facts: False
+  vars:
+    region: "{{ region }}"
+    environment: "{{ environment }}"
+    
+  tasks:
+    - name: Read Variables
+      include_vars:
+        file: "cf-templates/defaults/main.yml"
+        
+    - name: Upload EXT-NAT HUB Cloudformation Script
+      aws_s3:
+        bucket: tgw-artifact-bucket
+        region: "{{ region }}"
+        object: "/{{ env }}/Transit-network-orchestrator-ext-nat-hub.yml"
+        src: "./cf-templates/Transit-network-orchestrator-ext-nat-hub.yml"        
+        mode: put
+        overwrite: always
+        
+    - name: Upload INT-NAT HUB Cloudformation Script
+      aws_s3:
+        bucket: tgw-artifact-bucket
+        region: "{{ region }}"
+        object: "/{{ env }}/Transit-network-orchestrator-int-nat-hub.yml"
+        src: "./cf-templates/Transit-network-orchestrator-int-nat-hub.yml"        
+        mode: put
+        overwrite: always
+        
+    - name: Upload SPOKE Cloudformation Script
+      aws_s3:
+        bucket: tgw-artifact-bucket
+        region: "{{ region }}"
+        object: "/{{ env }}/Transit-network-orchestrator-spoke.yml"
+        src: "./cf-templates/Transit-network-orchestrator-spoke.yml"        
+        mode: put
+        overwrite: always
+        
+    - name: Upload ext nat vpc cloudformation script
+      aws_s3:
+        bucket: tgw-artifact-bucket
+        region: "{{ region }}"
+        object: "/{{ env }}/ext-nat-transit-gateway-vpc.yml"
+        src: "./cf-templates/ext-nat-transit-gateway-vpc.yml"        
+        mode: put
+        overwrite: always
+        
+    - name: Upload int-nat vpc cloudformation script
+      aws_s3:
+        bucket: tgw-artifact-bucket
+        region: "{{ region }}"
+        object: "/{{ env }}/int-nat-transit-gateway-vpc.yml"
+        src: "./cf-templates/int-nat-transit-gateway-vpc.yml"        
+        mode: put
+        overwrite: always
+        
+    - name: Create the nested stack
+      cloudformation:
+        stack_name: "gcs-{{ regions[region]['regionIata'] }}-tgw-{{ tags[env]['subenvironment'] }}"
+        state: "present"
+        region: "{{ region }}"
+        disable_rollback: true
+        template: "./cf-templates/nested.yml"
+        template_parameters:
+          environment: "{{ tags[env]['subenvironment'] }}"
+          costCenter: "{{ tags[env]['costTag'] }}"
+          techContact: "{{ techContact }}"
+          product: "{{ product }}"
+          regionIata: "{{ regions[region]['regionIata'] }}"
+          PublicSubnet1AZ: "{{ regions[region]['vpcAvailabilityZone1'] }}"
+          PublicSubnet2AZ: "{{ regions[region]['vpcAvailabilityZone2'] }}"
+          PrivateSubnet1AZ: "{{ regions[region]['vpcAvailabilityZone1'] }}"
+          PrivateSubnet2AZ: "{{ regions[region]['vpcAvailabilityZone2'] }}"
+          EXTNATCIDR: "{{ vpcCfg[env]['EXTNATCidr'] }}"
+          EXTNATPublicCidrBlock1: "{{ vpcCfg[env]['ExtNatsubnetPub1'] }}"
+          EXTNATPublicCidrBlock2: "{{ vpcCfg[env]['ExtNatsubnetPub2'] }}"
+          EXTNATPrivateCidrBlock1: "{{ vpcCfg[env]['ExtNatsubnetPri1'] }}"
+          EXTNATPrivateCidrBlock2: "{{ vpcCfg[env]['ExtNatsubnetPri2'] }}"
+          INTNATCIDR: "{{ vpcCfg[env]['INTNATCidr'] }}"
+          INTNATPublicCidrBlock1: "{{ vpcCfg[env]['IntNatsubnetPub1'] }}"
+          INTNATPublicCidrBlock2: "{{ vpcCfg[env]['IntNatsubnetPub2'] }}"
+          INTNATPrivateCidrBlock1: "{{ vpcCfg[env]['IntNatsubnetPri1'] }}"
+          INTNATPrivateCidrBlock2: "{{ vpcCfg[env]['IntNatsubnetPri2'] }}"
+          Principals: "{{ tags[env]['accountId'] }}"
+          HubAccount: "{{ tags[env]['accountId'] }}"
+          pAmazonASNEXTNAT: "{{ tags[env]['pAmazonAsnextnat'] }}"
+          pAmazonASNINTNAT: "{{ tags[env]['pAmazonAsnintnat'] }}"
+          RoleCreation: "{{ tags[env]['RoleCreation'] }}"
+          EXTNATTraffic: "{{ vpcCfg[env]['EXTNATTraffic'] }}"
+          INTNATTraffic: "{{ vpcCfg[env]['INTNATTraffic'] }}"
